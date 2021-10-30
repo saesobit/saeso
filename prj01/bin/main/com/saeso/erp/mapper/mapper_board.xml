@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+
+<!--******************************-->
+<!-- 테이블 명 BOARD_TD 에서 BOARD 로 변경-->
+<!--******************************-->
+<mapper namespace="com.saeso.erp.dao.BoardDAO">
+
+
+<!--************************************************************-->
+<!-- 게시판 글 목록 구할 때 사용할 where 절을 sql 태그 안에 선언하기-->
+<!--************************************************************-->
+<sql id="boardWhere">
+	
+	<if test="keyword1!=null and keyword1.length()>0">
+		and (
+	</if>
+	
+	<if test="keyword1!=null and keyword1.length()>0">
+		(
+		upper(b.subject) like upper('%${keyword1}%')
+		or
+		upper(b.content) like upper('%${keyword1}%')
+		or
+		to_char(b.reg_date,'YYYY-MM-DD') like '%${keyword1}%'
+		)
+	</if>
+	
+
+	<if test="keyword1!=null and keyword1.length()>0">
+		)
+	</if>
+	  
+	<!-- 인기 검색어(21.10.26 통합검색 추가) -->
+	<if test="topKeyword != null and topKeyword.size() > 0">
+		and
+		<foreach collection="topKeyword" item="topKeyword" open="(" separator=" or " close=")" index="idx">	
+		upper(b.subject) like upper('%${topKeyword}%')
+		or
+		upper(b.content) like upper('%${topKeyword}%')
+		or
+		to_char(b.reg_date,'YYYY-MM-DD') like '%${topKeyword}%'
+		</foreach>
+	</if> 
+	 
+	
+
+</sql>
+
+	
+
+	<!--****************************************************-->
+	<!-- 게시판 글 입력하는 insert 문을 내포한 insert 태그 선언-->
+	<!--****************************************************-->
+	<insert id="insertBoard" parameterType="com.saeso.erp.dto.BoardDTO" >
+							
+		insert into board(
+			b_no
+			<!--******************************-->
+			<!-- member_no 고친 부분-->
+			,member_no
+			<!--******************************-->
+			,subject
+			,readcount
+			,content
+			
+		<if test="pic!=null and pic.length>0">
+			,pic
+		</if>
+			,group_no
+			,print_no
+			,print_level 	
+		)values(
+			(select nvl(max(b_no),0)+1 from board)
+			<!--******************************-->
+			<!-- member_no 고친 부분-->
+			,#{member_no}
+			<!--******************************-->
+			,#{subject} 
+			,0
+			,#{content} 
+			<if test="pic!=null and pic.length>0">
+			,#{pic}
+			</if>
+			
+			<if test="b_no==0"> 
+			,(select nvl(max(b_no),0)+1 from board)
+			,0
+			,0		
+			</if>
+
+			<if test="b_no>0">
+			,(select group_no from board where b_no=#{b_no})
+			,(select print_no+1 from board where b_no=#{b_no})
+			,(select print_level+1 from board where b_no=#{b_no})
+			</if>
+		)
+	</insert>
+
+
+
+
+<!--****************************************************-->
+<!-- 게시판 글 리스트 출력하는 select 태그 선언-->
+<!--****************************************************-->
+<select id="getBoardList" parameterType="com.saeso.erp.dto.BoardSearchDTO" resultType="java.util.HashMap">
+
+select * from( select rownum RNUM ,a.* from(
+   select
+        b.b_no||''                                "b_no"
+        , m.nick                                 "nick"
+        , b.subject                                "subject"
+        , b.readcount||''                        "readcount"
+        , to_char(b.reg_date,'YYYY-MM-DD(DY)')    "reg_date"
+        , b.print_level||''                        "print_level" 
+        <!-- 21.10.26 content 추가, 통합검색에서 사용 -->
+        , b.content                                "content"    
+    from board b, member m   
+   where
+    1=1
+    and
+        b.member_no = m.member_no
+   <if test="isMyContent!=null and isMyContent.length()>0">
+      and(
+         <!--******************************-->
+         <!-- member_no 고친 부분-->
+         m.member_no=#{member_no}
+         <!--******************************-->
+      )
+   </if>
+   
+   <include refid="boardWhere"/>
+
+   order by
+      b.group_no desc
+        ,b.print_no asc
+   
+)a 
+    
+   <![CDATA[where rownum <=${selectPageNo*rowCntPerPage}) where RNUM >=${selectPageNo*rowCntPerPage-rowCntPerPage+1} ]]>
+</select>
+
+
+
+<!--********************************************************-->
+<!-- 게시판 글 목록 총 개수 구하는 select 태그 선언-->
+<!--********************************************************-->
+<select id="getBoardListAllCnt" parameterType="com.saeso.erp.dto.BoardSearchDTO" resultType="int">
+
+   select 
+      count(*) 
+   from 
+      board b, member m 
+   where
+      1=1
+      and
+      b.member_no = m.member_no
+      <if test="isMyContent!=null and isMyContent.length()>0">
+         and(
+            m.member_no=#{member_no}
+         )
+      </if>
+
+   
+   <include refid="boardWhere"/>
+
+</select>
+
+
+
+
+<!--********************************************************-->
+<!-- 게시판 1개 글 검색하는 select 문을 내포한 select 태그 선언-->
+<!--********************************************************-->
+<select id="getBoard" parameterType="int" resultType="com.saeso.erp.dto.BoardDTO">
+
+select	
+	b.b_no				"b_no"
+	<!--******************************-->
+	<!-- member_no 고친 부분-->
+	,m.nick				"nick"
+	<!--******************************-->
+	,b.subject			"subject"
+	,b.reg_date			"reg_date"
+	,b.readcount		"readcount"
+	,b.content			"content"
+	,b.pic				"pic"
+	,b.group_no			"group_no"
+	,b.print_no			"print_no"
+	,b.print_level		"print_level"
+from	board b , member m 
+where
+	b.b_no=#{b_no}
+	and
+	b.member_no = m.member_no
+
+	
+</select>
+
+
+
+
+
+<!--********************************************************-->
+<!-- 조회수 1 증가하는 update 문을 내포한 update 태그 선언 -->
+<!--********************************************************-->
+<update id="updateReadcount" parameterType="int">
+
+	update board set readcount = readcount+1
+	where
+		b_no=#{b_no}
+
+</update>
+
+
+
+
+<!--**************************************************-->
+<!-- 삭제/수정할 게시판의 존재 개수를 리턴하는 select 선언-->
+<!--**************************************************-->
+<select id="getBoardCnt" parameterType="com.saeso.erp.dto.BoardDTO" resultType="int">
+	select count(*) from board where b_no=#{b_no}
+</select>
+
+
+
+
+<!--******************************************************-->
+<!-- 게시판 수정하는 update 을 내포하는 update 태그 선언-->
+<!--******************************************************-->
+<update id="updateBoard" parameterType="com.saeso.erp.dto.BoardDTO">
+
+	update board 
+	set
+		subject=#{subject}
+		,content=#{content, jdbcType=VARCHAR}
+
+		<if test="is_del!=null and is_del.length()>0">
+		,pic=null
+		</if>
+
+		<if test="is_del==null or is_del.length()==0">
+			<if test="pic!=null and pic.length()>0">
+			,pic=#{pic}
+			</if>
+		</if>
+
+	where
+		b_no=#{b_no}
+</update>
+
+
+
+
+<!--******************************************************-->
+<!-- 삭제할 게시판의 자식글 존재 개수를 리턴하는 select 내포하는 select 태그 선언-->
+<!--******************************************************-->
+<select id="getChildrenCnt" parameterType="com.saeso.erp.dto.BoardDTO" resultType="int">
+
+select
+    count(*) 
+from
+    board 
+where 
+	group_no = (select group_no from board where b_no=#{b_no})
+	and
+	print_no =  (select print_no+1 from board where b_no=#{b_no})
+	and
+	print_level = (select print_level+1 from board where b_no=#{b_no})
+
+
+</select>
+
+
+
+
+
+<!--******************************************************-->
+<!-- 삭제될 게시판 이후 글의 출력 순서번호를 1씩 감소 시킨 후 수정하는 update 내포하는 update 태그 선언-->
+<!--******************************************************-->
+<update id="downPrintNo" parameterType="com.saeso.erp.dto.BoardDTO">
+	update board set print_no = print_no-1
+	where
+	group_no = (select group_no from board where b_no=#{b_no})
+	and
+	print_no > (select print_no from board where b_no=#{b_no})
+</update>
+
+
+
+
+
+<!--******************************************************-->
+<!-- 게시판 삭제하는 delete 내포하는 delete 태그 선언-->
+<!--******************************************************-->
+<delete id="deleteBoard" parameterType="com.saeso.erp.dto.BoardDTO">
+
+	delete from board where b_no=#{b_no}
+</delete>
+
+
+
+
+<!--******************************************************-->
+<!-- 게시판 글 출력번호 업데이트하는 update 태그 선언-->
+<!--******************************************************-->
+<update id="updatePrintNo" parameterType="com.saeso.erp.dto.BoardDTO">
+	update board set print_no = print_no+1
+	where
+	group_no = (select group_no from board where b_no=#{b_no})
+	and
+	print_no > (select print_no from board where b_no=#{b_no})
+
+</update>
+
+
+
+<!--******************************************************-->
+<!-- 게시판 이미지 이름 가져오는 select 문을 내포한 select 태그 선언-->
+<!--******************************************************-->
+<select id="getPic" parameterType="com.saeso.erp.dto.BoardDTO" resultType="String">
+	select
+		pic
+	from
+		board
+	where
+		b_no=#{b_no}
+
+</select>
+
+
+
+
+</mapper>
+

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.saeso.erp.dao.LoginDAO">
+	
+	
+	<!-- ***************************************************** -->
+	<!-- 사장님의 이메일 존재 개수를 리턴하는 select 태그 선언 -->
+	<!-- ***************************************************** -->
+	<select id="getCeoLogin_emailCnt" parameterType="hashmap" resultType="int">
+		select 
+			count(*)
+		from 
+			ceo 
+		where 
+			ceo_email=#{ceo_email, jdbcType=VARCHAR} and ceo_pw=#{ceo_pw, jdbcType=VARCHAR}
+	</select>
+	
+	
+	<!-- *************************************************** -->
+	<!-- 유저의 이메일 존재 개수를 리턴하는 select 태그 선언 -->
+	<!-- *************************************************** -->
+	<select id="getLogin_emailCnt" parameterType="hashmap" resultType="int">
+		select 
+			count(*)
+		from 
+			member 
+		where 
+			member_email=#{member_email, jdbcType=VARCHAR} and member_pw=#{member_pw, jdbcType=VARCHAR}
+	</select>
+	
+	<!-- ***************************************************************** -->
+	<!-- 유저의 회원가입 정보 입력하는 insert 문을 내포한 insert 태그 선언 -->
+	<!-- ***************************************************************** -->
+	<insert id="insertMember" parameterType="com.saeso.erp.dto.MemberDTO">
+		insert into member(
+			member_no
+			,member_email
+			,nick
+			,member_pw
+		) values(
+			(select nvl(max(member_no),0)+1 from member)
+			,#{member_email, jdbcType=VARCHAR}
+			,#{nick, jdbcType=VARCHAR}		
+			,#{member_pw, jdbcType=VARCHAR}			
+		)
+	</insert>
+	
+	<!-- ******************************************** -->
+	<!-- 이메일 존재 개수를 리턴하는 select 태그 선언 -->
+	<!-- ******************************************** -->
+	<select id="getMemberEmailCnt" parameterType="com.saeso.erp.dto.MemberDTO" resultType="int">
+		select count(*) from member where member_email=#{member_email}
+	</select>
+	
+	<!-- ******************************************** -->
+	<!-- 닉네임 존재 개수를 리턴하는 select 태그 선언 -->
+	<!-- ******************************************** -->
+	<select id="getNickCnt" parameterType="com.saeso.erp.dto.MemberDTO" resultType="int">
+		select count(*) from member where nick=#{nick}
+	</select>
+
+</mapper>

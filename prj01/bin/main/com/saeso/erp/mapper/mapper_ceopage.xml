@@ -1,0 +1,396 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.saeso.erp.dao.CeopageDAO">
+
+	
+	
+	<sql id="statisticsWhere">
+		
+		<if test="expNo != null and expNo != 0">
+			and e.exp_no = #{expNo}
+		</if>
+		
+		
+	</sql>
+
+
+
+
+
+
+
+
+	<!-- 사장님 브랜드명, 이름 가져오기 -->
+	<select id="getCeoInfo" parameterType="String" resultType="java.util.HashMap" >
+		select 
+				b.brand_name as "brand_name"
+				, c.ceo_name as "ceo_name"
+		from ceo c inner join brand b on c.ceo_no = b.ceo_no where c.ceo_email=#{ceoEmail}
+	</select>
+
+
+
+	<!-- 1. 신청한 체험 - applExpList 아영확인완료-->
+	<select id="getIngExpList" parameterType="com.saeso.erp.dto.CeoDTO" resultType="java.util.HashMap">
+	SELECT 
+		ex.exp_no AS "exp_no",
+		ex.ceo_no AS "ceo_no",
+		ex.title AS "exp_title",
+		ex.thumb_img AS "exp_thumb_img",
+		br.BRAND_NAME AS "brand_name",
+		ex.provide_short AS "exp_prov_sh",
+		ex.select_user_num AS "selec_num",
+		COUNT(ea.exp_appl_no) AS "appl_num"
+	FROM 
+		((EXP ex LEFT OUTER JOIN EXP_DATE ed ON ex.EXP_NO = ed.EXP_NO) 
+		LEFT OUTER JOIN BRAND br ON ex.CEO_NO = br.CEO_NO) 
+		LEFT OUTER JOIN EXP_APPLY ea ON ex.EXP_NO = ea.EXP_NO
+	WHERE
+			ex.CEO_NO = ${ceo_no}	
+		AND 
+			(SYSDATE BETWEEN ed.EXP_START_APPLY_DATE AND ed.EXP_LAST_APPLY_DATE)
+	GROUP BY ex.exp_no, ex.ceo_no, ex.title, ex.thumb_img, br.BRAND_NAME, ex.select_user_num, ex.provide_short
+	</select>
+	
+	<!-- 2. 선정이 필요한 체험 - selecNeedExpList 아영확인완료 -->
+	<select id="getSelecNeedExpList" parameterType="com.saeso.erp.dto.CeoDTO" resultType="java.util.HashMap">
+	SELECT 
+		ex.exp_no AS "exp_no",
+		ex.ceo_no AS "ceo_no",
+		ex.title AS "exp_title",
+		ex.thumb_img AS "exp_thumb_img",
+		br.BRAND_NAME AS "brand_name",
+		ex.provide_short AS "exp_prov_sh",
+		ex.select_user_num AS "selec_num",
+		COUNT(ea.exp_appl_no) AS "appl_num"
+	FROM 
+		((EXP ex LEFT OUTER JOIN EXP_DATE ed ON ex.EXP_NO = ed.EXP_NO) 
+		LEFT OUTER JOIN BRAND br ON ex.CEO_NO = br.CEO_NO) 
+		LEFT OUTER JOIN EXP_APPLY ea ON ex.EXP_NO = ea.EXP_NO
+	WHERE
+			ex.CEO_NO = ${ceo_no}			
+		AND 
+			(SYSDATE <![CDATA[>]]> ed.EXP_LAST_APPLY_DATE AND SYSDATE <![CDATA[<]]> ed.SELECT_ANNOUNCE_DATE)
+	GROUP BY ex.exp_no, ex.ceo_no, ex.title, ex.thumb_img, br.BRAND_NAME, ex.select_user_num, ex.provide_short
+	HAVING SUM(ea.select_flag) = 0
+	</select>
+	
+	<!-- 3. 선정이 종료된 체험  selecEndExpList  아영확인완료-->
+	<select id="getSelecEndExpList" parameterType="com.saeso.erp.dto.CeoDTO" resultType="java.util.HashMap">
+	SELECT
+		ex.exp_no AS "exp_no",
+		ex.ceo_no AS "ceo_no",
+		ex.title AS "exp_title",
+		ex.thumb_img AS "exp_thumb_img",
+		br.BRAND_NAME AS "brand_name",
+		ex.provide_short AS "exp_prov_sh",
+		ex.select_user_num AS "selec_num",
+		COUNT(ea.exp_appl_no) AS "appl_num"
+	FROM
+		((EXP ex LEFT OUTER JOIN EXP_DATE ed ON ex.EXP_NO = ed.EXP_NO)
+		LEFT OUTER JOIN BRAND br ON ex.CEO_NO = br.CEO_NO)
+		LEFT OUTER JOIN EXP_APPLY ea ON ex.EXP_NO = ea.EXP_NO
+	WHERE
+			ex.CEO_NO = ${ceo_no}
+		AND
+			(SYSDATE > ed.EXP_LAST_APPLY_DATE)
+	GROUP BY ex.exp_no, ex.ceo_no, ex.title, ex.thumb_img, br.BRAND_NAME, ex.select_user_num, ex.provide_short
+	HAVING SUM(ea.select_flag) > 0
+	
+	
+	</select>
+	
+	
+
+
+
+
+
+	<!-- ********************************-->
+	<!-- 선정하기 -->
+	<!-- ********************************-->
+	<select id="getUserListAllCnt" parameterType="com.saeso.erp.dto.ApplUserDTO" resultType="int">
+		select 
+        	count(*) 
+		from
+			exp_apply
+		where
+    		exp_no=#{exp_no}
+   </select>
+   
+   <select id="getUserWinAllCnt" parameterType="com.saeso.erp.dto.ApplUserDTO" resultType="int">
+		select 
+        	select_user_num
+		from
+			exp
+		where
+    		exp_no=#{exp_no}
+   </select>
+   
+   
+   <select id="getApplUserList" parameterType="com.saeso.erp.dto.ApplUserDTO" resultType="java.util.HashMap">
+   select * from (select rownum RNUM, zxcvb.* from (
+       select
+          exp_no   "exp_no"
+          ,(select title from exp where exp_no=${exp_no}) "title"
+          ,(select
+                (select brand_name from brand b where e1.ceo_no = b.ceo_no) "brand_name"
+            from
+                exp e1
+            where 
+                exp_no=${exp_no}) "brand_name"
+          ,member_no  "member_no"
+          ,(select member_name from member u where u.member_no=e.member_no)        "member_name"
+          ,(select decode(substr(jumin_num,7,1),1,'남',3,'남','여') from member m where m.member_no=e.member_no)  "member_sex"
+          ,(select floor(
+              (to_number(to_char(sysdate,'yyyy'))
+              -to_number(
+                  case
+                          when substr(jumin_num,7,1)='1' then '19'
+                          when substr(jumin_num,7,1)='2' then '19'
+                          else '20'
+                  end||substr(jumin_num,1,2)
+              )+1)*0.1)||'0대' from member m where m.member_no=e.member_no)   "member_age"
+          ,(select (select 36.5-count(*)||'℃' from exp_apply ea left outer join exp_date ed on (ea.exp_no = ed.exp_no)
+                  where ea.exp_no = 1                            
+                  and
+                  (
+                      ea.select_flag = 1
+                      and
+                      sysdate > ed.review_last_reg_date
+                      and
+                      review_url is null
+                  ))
+                  from member m where m.member_no=e.member_no)  "member_digree"
+      from
+          EXP_APPLY e
+      where
+          exp_no=${exp_no}
+       order by
+          ${member_desc}
+          ,member_no
+          ) zxcvb 
+      <![CDATA[
+         where rownum <= ${selectPageNo*rowCntPerPage}) 
+         where RNUM >= ${selectPageNo*rowCntPerPage-rowCntPerPage+1}
+      ]]>
+   </select>
+   
+	
+	<!-- 10/21 선정하기 오류 수정한거!!!! 이거 복사하시면 됩니다!!!!! -->
+	<update id="getApplUserUpCnt" parameterType="int">
+		update EXP_APPLY set select_flag = select_flag+1
+		where member_no=${member_no} and exp_no=${exp_no}
+
+	</update>
+	
+	
+
+	<!-- ********************************-->
+	<!-- 통계 정보 -->
+	<!-- ********************************-->
+
+	<!-- 사장님 로그인 여부 확인 -->
+	<select id="ceoLoginCnt" parameterType="String" resultType="int">
+		select count(*) from ceo where ceo_email=#{ceoEmail}
+	</select>
+	
+	<!-- 사장님 번호 가져오기 -->
+	<select id="getCeoNo" parameterType="String" resultType="int">
+		select ceo_no from ceo where ceo_email=#{ceoEmail}
+	</select>
+	
+	<!-- 체험 리스트 가져오기 -->
+	<select id="getExpList" parameterType="int" resultType="java.util.HashMap">
+		select
+	        exp_no as "exp_no"
+	        ,title as "exp_title"
+		from exp where ceo_no = #{ceoNo}
+	</select>
+	
+	
+<!-- 여기부터 통계 정보 시작 -->
+	
+	<!-- 진행 회차 수 -->
+	<select id="expProgressCnt" parameterType="java.util.HashMap" resultType="int">
+		select count(*) from exp e
+		where ceo_no = #{ceoNo} 
+		<include refid="statisticsWhere"/>
+	</select>
+	
+	<!-- 좋아요 수 -->
+	<select id="likeCnt" parameterType="java.util.HashMap" resultType="int">
+		select count(*) from exp e inner join likes l on e.exp_no = l.exp_no and e.ceo_no = #{ceoNo}
+		where 1=1 
+		<include refid="statisticsWhere"/>
+	</select>	
+	
+	<!-- 조회수 -->
+	<select id="viewsCnt" parameterType="java.util.HashMap" resultType="int">
+		select sum(readcount) from exp e
+		where ceo_no = #{ceoNo}
+		<include refid="statisticsWhere"/>
+	</select>
+	
+	<!-- 체험 수량 수 -->
+	<select id="selectNumCnt" parameterType="java.util.HashMap" resultType="int">
+		select sum(select_user_num) from exp e
+		where ceo_no = #{ceoNo}
+		<include refid="statisticsWhere"/>
+	</select>
+	
+	<!-- 진행 시간 -->
+	<select id="expProgressTime" parameterType="java.util.HashMap" resultType="int">
+		select sum(ed.exp_last_apply_date - ed.exp_start_apply_date)
+		from exp e inner join exp_date ed on e.exp_no = ed.exp_no 
+		where e.ceo_no = #{ceoNo}
+		<include refid="statisticsWhere"/>
+	</select>
+	
+	
+	<!-- 후기 개수 리턴 -->
+	<select id="applyCnt" parameterType="java.util.HashMap" resultType="int">
+		select count(*) from exp_apply ea inner join exp e on ea.exp_no = e.exp_no 
+		where e.ceo_no = #{ceoNo} and review_url is not null 
+		<include refid="statisticsWhere"/>
+	</select>
+	
+	
+	<!-- 만족도 -->
+	<select id="satisCnt" parameterType="java.util.HashMap" resultType="double">
+		select trunc(avg(ea.satisfaction_level),1) from exp_apply ea inner join exp e on ea.exp_no = e.exp_no 
+		where e.ceo_no = #{ceoNo}
+		<include refid="statisticsWhere"/>
+	</select>
+	
+	<!-- 만족도 (점수별) -->
+	<select id="satisJumsuCnt" parameterType="java.util.HashMap" resultType="int">
+		select count(ea.satisfaction_level) from exp_apply ea inner join exp e on ea.exp_no = e.exp_no 
+		where e.ceo_no = ${ceoNo} and ea.satisfaction_level = #{jumsu}
+		<include refid="statisticsWhere"/>
+	</select>
+	
+	<!-- 재구매 의사 -->
+	<select id="rebuyCnt" parameterType="java.util.HashMap" resultType="int">
+		select sum(ea.rebuy_flag) from  exp_apply ea inner join exp e on ea.exp_no = e.exp_no 
+		where e.ceo_no = 1
+		<include refid="statisticsWhere"/>
+	</select>
+	
+	<!-- 재구매 의사 (연령대별) -->
+	<select id="rebuyAgeCnt" parameterType="java.util.HashMap" resultType="int">
+		select count(*)
+		from  exp_apply ea inner join exp e on ea.exp_no = e.exp_no
+		                    inner join member m on ea.member_no = m.member_no
+		where e.ceo_no = ${ceoNo}
+		      and
+		      trunc((extract(year from sysdate) -
+		      (case when substr(m.jumin_num, 7, 1) in('1','2') then '19' else '20' end||substr(m.jumin_num, 1, 2)))*0.1)||'0' = #{age}
+		      and ea.rebuy_flag = 1	
+		      <include refid="statisticsWhere"/>
+	</select>
+	
+	<!-- 작성된 리뷰 수 -->
+	<select id="revWriteCnt" parameterType="java.util.HashMap" resultType="int">
+		select count(*)
+		from exp_apply e
+		where exp_no in (select e.exp_no
+				from exp e inner join exp_date ed on e.exp_no = ed.exp_no
+				where e.ceo_no = #{ceoNo} and sysdate >= ed.review_start_reg_date) 
+			and review_url is not null
+			<include refid="statisticsWhere"/>
+	</select>
+	
+	<!-- 미 작성된 리뷰 수 -->
+	<select id="revUnWriteCnt" parameterType="java.util.HashMap" resultType="int">
+		select count(*)
+		from exp_apply e
+		where exp_no in (select e.exp_no
+				from exp e inner join exp_date ed on e.exp_no = ed.exp_no
+				where e.ceo_no = #{ceoNo} and sysdate >= ed.review_start_reg_date) 
+			and review_url is null
+			<include refid="statisticsWhere"/>
+	</select>
+	
+	<!-- 성별 (여성) -->
+	<select id="genderWCnt" parameterType="java.util.HashMap" resultType="int">
+		select count(*)
+		from exp_apply ea inner join member m on ea.member_no = m.member_no
+		                    inner join exp e on ea.exp_no = e.exp_no and e.ceo_no = #{ceoNo}
+		where substr(m.jumin_num, 7, 1) in('2', '4')
+			<include refid="statisticsWhere"/>
+	</select>
+	
+	
+	<!-- 성별 (남성) -->
+	<select id="genderMCnt" parameterType="java.util.HashMap" resultType="int">
+		select count(*)
+		from exp_apply ea inner join member m on ea.member_no = m.member_no
+		                    inner join exp e on ea.exp_no = e.exp_no and e.ceo_no = #{ceoNo}
+		where substr(m.jumin_num, 7, 1) in('1', '3')
+			<include refid="statisticsWhere"/>
+	</select>
+	
+	
+	
+	
+	
+	<!-- ********************************-->
+	<!-- 체험 등록 -->
+	<!-- ********************************-->
+	<insert id="insertExp" parameterType="com.saeso.erp.dto.ExpDTO" >
+		insert into exp(
+		  exp_no
+		 ,ceo_no
+		 ,cate_no
+		 ,title
+		 ,provide_short
+		 ,thumb_img
+		 ,subtitle
+		 ,provide
+		 ,keyword
+		 ,mission
+		 ,guide
+		 ,select_user_num
+		,img
+		)
+		values(
+		    (select nvl(max(exp_no),0)+1 from exp)  
+		    , #{ceo_no}        
+		    , #{cate_no} 
+		    , #{title}
+		    , #{provide_short}
+			, #{thumb_img}
+		    , #{subtitle}
+		    , #{provide, jdbcType=VARCHAR}
+		    , #{keyword}
+		    , #{mission, jdbcType=VARCHAR}
+		    , #{guide}
+		    , #{select_user_num}
+			, #{img}
+		
+		)
+			
+	</insert>
+	
+	<insert id="insertExpDt" parameterType="com.saeso.erp.dto.ExpDtDTO" >
+		insert into exp_date(
+             exp_no
+            ,EXP_START_APPLY_DATE
+            ,EXP_LAST_APPLY_DATE
+            ,SELECT_ANNOUNCE_DATE
+            ,REVIEW_START_REG_DATE
+            ,REVIEW_LAST_REG_DATE
+        )values(
+            (select nvl(max(exp_no),0) from exp)
+            ,TO_DATE(#{EXP_START_APPLY_DATE}, 'YYYY-MM-DD')
+            ,TO_DATE(#{EXP_LAST_APPLY_DATE}, 'YYYY-MM-DD')
+            ,TO_DATE(#{SELECT_ANNOUNCE_DATE}, 'YYYY-MM-DD')
+            ,TO_DATE(#{REVIEW_START_REG_DATE}, 'YYYY-MM-DD')
+            ,TO_DATE(#{REVIEW_LAST_REG_DATE}, 'YYYY-MM-DD')
+        )
+	</insert>
+	
+
+</mapper>
